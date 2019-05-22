@@ -60,17 +60,17 @@ if ($WebhookData)
                 throw "Could not retrieve connection asset: $ConnectionAssetName. Check that this asset exists in the Automation account."
             }
             Write-Verbose "Authenticating to Azure with service principal." -Verbose
-            Add-AzureRMAccount -ServicePrincipal -Tenant $Conn.TenantID -ApplicationId $Conn.ApplicationID -CertificateThumbprint $Conn.CertificateThumbprint | Write-Verbose
+            Connect-AzAccount -ServicePrincipal -Tenant $Conn.TenantID -ApplicationId $Conn.ApplicationID -CertificateThumbprint $Conn.CertificateThumbprint | Write-Verbose
             Write-Verbose "Setting subscription to work against: $SubId" -Verbose
-            Set-AzureRmContext -SubscriptionId $SubId -ErrorAction Stop | Write-Verbose
+            Set-AzContext -SubscriptionId $SubId -ErrorAction Stop | Write-Verbose
             
 
             #region Mycode
-            $storageAccountContext = (Get-AzureRmStorageAccount -Name $stAccountName -ResourceGroupName $ResourceGroupName).Context
-            $containerPermission = (Get-AzureStorageContainer -Context $storageAccountContext -Name $ResourceName).PublicAccess
+            $storageAccountContext = (Get-AzStorageAccount -Name $stAccountName -ResourceGroupName $ResourceGroupName).Context
+            $containerPermission = (Get-AzStorageContainer -Context $storageAccountContext -Name $ResourceName).PublicAccess
 
             Write-Verbose "Getting Azure token"
-            $azContext = Get-AzureRmContext
+            $azContext = Get-AzContext
             $azProfile = [Microsoft.Azure.Commands.Common.Authentication.Abstractions.AzureRmProfileProvider]::Instance.Profile
             $profileClient = New-Object -TypeName Microsoft.Azure.Commands.ResourceManager.Common.RMProfileClient -ArgumentList ($azProfile)
             $token = $profileClient.AcquireAccessToken($azContext.Subscription.TenantId)
@@ -82,7 +82,7 @@ if ($WebhookData)
 
             if ( $containerPermission -ne "Off" ) {
                 Write-Verbose "Storage account permissions is set to: $containerPermission, setting the permission to Off"
-                Set-AzureStorageContainerAcl -Context $storageAccountContext -Name $ResourceName -Permission Off
+                Set-AzStorageContainerAcl -Context $storageAccountContext -Name $ResourceName -Permission Off
                 Write-Verbose "Container permission set to off"
             }
             else {
