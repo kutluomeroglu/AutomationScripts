@@ -31,36 +31,9 @@ if ($WebhookData)
         #endregion
         $status = $Essentials.monitorCondition
     }
-    elseif ($schemaId -eq "AzureMonitorMetricAlert") {
-        # This is the near-real-time Metric Alert schema
-        $AlertContext = [object] ($WebhookBody.data).context
-        $SubId = $AlertContext.subscriptionId
-        $ResourceGroupName = $AlertContext.resourceGroupName
-        $ResourceType = $AlertContext.resourceType
-        $ResourceName = $AlertContext.resourceName
-        $status = ($WebhookBody.data).status
-    }
-    elseif ($schemaId -eq "Microsoft.Insights/activityLogs") {
-        # This is the Activity Log Alert schema
-        $AlertContext = [object] (($WebhookBody.data).context).activityLog
-        $SubId = $AlertContext.subscriptionId
-        $ResourceGroupName = $AlertContext.resourceGroupName
-        $ResourceType = $AlertContext.resourceType
-        $ResourceName = (($AlertContext.resourceId).Split("/"))[-1]
-        $status = ($WebhookBody.data).status
-    }
-    elseif ($schemaId -eq $null) {
-        # This is the original Metric Alert schema
-        $AlertContext = [object] $WebhookBody.context
-        $SubId = $AlertContext.subscriptionId
-        $ResourceGroupName = $AlertContext.resourceGroupName
-        $ResourceType = $AlertContext.resourceType
-        $ResourceName = $AlertContext.resourceName
-        $status = $WebhookBody.status
-    }
     else {
         # Schema not supported
-        Write-Error "The alert data schema - $schemaId - is not supported."
+        Write-Error "The alert data schema - $schemaId - is not supported. Alert must be in common alert schema."
     }
 
     Write-Verbose "status: $status" -Verbose
@@ -91,16 +64,39 @@ if ($WebhookData)
             Write-Verbose "Setting subscription to work against: $SubId" -Verbose
             Set-AzureRmContext -SubscriptionId $SubId -ErrorAction Stop | Write-Verbose
             
+
             #region Mycode
             $storageAccountContext = (Get-AzureRmStorageAccount -Name $stAccountName -ResourceGroupName $ResourceGroupName).Context
             $containerPermission = (Get-AzureStorageContainer -Context $storageAccountContext -Name $ResourceName).PublicAccess
-            if ( $containerPermission -ne "Off" )
-            {
-                Write-Host "Storage account permissions is set to: $containerPermission, setting the permission to Off"
-                Set-AzureStorageContainerAcl -Context $storageAccountContext -Name $ResourceName -Permission Off
 
+            Write-Verbose "Getting Azure token"
+            $azContext = Get-AzureRmContext
+            $azProfile = [Microsoft.Azure.Commands.Common.Authentication.Abstractions.AzureRmProfileProvider]::Instance.Profile
+            $profileClient = New-Object -TypeName Microsoft.Azure.Commands.ResourceManager.Common.RMProfileClient -ArgumentList ($azProfile)
+            $token = $profileClient.AcquireAccessToken($azContext.Subscription.TenantId)
+            $authHeader = @{
+                'Content-Type'='application/json'
+                'Authorization'='Bearer ' + $token.AccessToken
             }
+            Write-Verbose "Got Token"
+
+            if ( $containerPermission -ne "Off" ) {
+                Write-Verbose "Storage account permissions is set to: $containerPermission, setting the permission to Off"
+                Set-AzureStorageContainerAcl -Context $storageAccountContext -Name $ResourceName -Permission Off
+                Write-Verbose "Container permission set to off"
+            }
+            else {
+                Write-Verbose "Storage account permission is Off."
+            }
+
+            Write-Verbose "Getting alert id"
+            $alertId = ($Essentials.alertId.Split('/'))[-1]
+            Write-Verbose "Changing alert state to closed"
+            $uri = "https://management.azure.com/subscriptions/$SubId/providers/Microsoft.AlertsManagement/alerts/$alertId/changestate?api-version=2018-05-05&newState=Closed"
+            Invoke-WebRequest -Headers $authHeader -Uri $uri -Method Post -UseBasicParsing
+            Write-Verbose "Alert was closed"
             #endregion
+
             # [OutputType(PSAzureOperationResponse")]
         }
         else {
