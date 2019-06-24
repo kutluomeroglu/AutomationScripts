@@ -54,7 +54,6 @@ if ($WebhookData)
             Write-Verbose "It is the expected resource type!" -Verbose
             
             # Authenticate to Azure with service principal and certificate and set subscription
-            Write-Verbose "Authenticating to Azure with service principal and certificate" -Verbose
 
             <#This code section uses the run as acconection
             Write-Verbose "Authenticating to Azure with service principal and certificate" -Verbose
@@ -68,15 +67,17 @@ if ($WebhookData)
             Write-Verbose "Authenticating to Azure with service principal." -Verbose
             Connect-AzAccount -ServicePrincipal -Tenant $Conn.TenantID -ApplicationId $Conn.ApplicationID -CertificateThumbprint $Conn.CertificateThumbprint | Write-Verbose
             #>
-            
             <#This section uses service principal authentication#>
 
             Write-Host "Getting credential information from automation account"
             $cred = Get-AutomationPSCredential -Name 'RemediationSP'
             $tenantId = Get-AutomationVariable -Name 'TenantId'
+
             Write-Host "Start login with SPN"
             Connect-AzAccount -Credential $cred -ServicePrincipal -TenantId $tenantId
-            
+
+            Write-Verbose "Setting subscription to work against: $SubId" -Verbose
+            Set-AzContext -SubscriptionId $SubId -ErrorAction Stop | Write-Verbose           
 
             #region Mycode
             $storageAccountContext = (Get-AzStorageAccount -Name $stAccountName -ResourceGroupName $ResourceGroupName).Context
