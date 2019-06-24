@@ -6,6 +6,9 @@ param
 )
 $ErrorActionPreference = "stop"
 
+Import-Module Az.Accounts -Force
+Import-Module Az.Storage -Force
+
 if ($WebhookData)
 {
     # Get the data object from WebhookData
@@ -52,6 +55,9 @@ if ($WebhookData)
             
             # Authenticate to Azure with service principal and certificate and set subscription
             Write-Verbose "Authenticating to Azure with service principal and certificate" -Verbose
+
+            <#This code section uses the run as acconection
+            Write-Verbose "Authenticating to Azure with service principal and certificate" -Verbose
             $ConnectionAssetName = "AzureRunAsConnection"
             Write-Verbose "Get connection asset: $ConnectionAssetName" -Verbose
             $Conn = Get-AutomationConnection -Name $ConnectionAssetName
@@ -61,8 +67,15 @@ if ($WebhookData)
             }
             Write-Verbose "Authenticating to Azure with service principal." -Verbose
             Connect-AzAccount -ServicePrincipal -Tenant $Conn.TenantID -ApplicationId $Conn.ApplicationID -CertificateThumbprint $Conn.CertificateThumbprint | Write-Verbose
-            Write-Verbose "Setting subscription to work against: $SubId" -Verbose
-            Set-AzContext -SubscriptionId $SubId -ErrorAction Stop | Write-Verbose
+            #>
+            
+            <#This section uses service principal authentication#>
+
+            Write-Host "Getting credential information from automation account"
+            $cred = Get-AutomationPSCredential -Name 'RemediationSP'
+            $tenantId = Get-AutomationVariable -Name 'TenantId'
+            Write-Host "Start login with SPN"
+            Connect-AzAccount -Credential $cred -ServicePrincipal -TenantId $tenantId
             
 
             #region Mycode
